@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Финансовый трекер - Межустройственная синхронизация</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <!-- Экран аутентификации -->
+    <div id="authScreen" class="screen">
+        <div class="auth-container">
+            <div class="auth-header">
+                <h1>💰 Финансовый трекер</h1>
+                <p>Управляйте финансами с синхронизацией между устройствами</p>
+            </div>
+            
+            <div class="auth-tabs">
+                <button id="loginTab" class="tab-btn active">Вход</button>
+                <button id="registerTab" class="tab-btn">Регистрация</button>
+            </div>
+            
+            <!-- Форма входа -->
+            <div id="loginForm" class="auth-form active">
+                <div class="form-group">
+                    <label for="loginUsername">Логин</label>
+                    <input type="text" id="loginUsername" placeholder="Введите логин" required>
+                </div>
+                <div class="form-group">
+                    <label for="loginPassword">Пароль</label>
+                    <input type="password" id="loginPassword" placeholder="Введите пароль" required>
+                </div>
+                <button id="loginBtn" class="btn btn-primary">
+                    <span id="loginBtnText">Войти в аккаунт</span>
+                </button>
+                <div class="demo-info">
+                    <p>Демо-аккаунт: test / Test123</p>
+                </div>
+            </div>
+            
+            <!-- Форма регистрации -->
+            <div id="registerForm" class="auth-form">
+                <div class="form-group">
+                    <label for="registerUsername">Логин</label>
+                    <input type="text" id="registerUsername" placeholder="Придумайте логин" required>
+                </div>
+                <div class="form-group">
+                    <label for="registerEmail">Email</label>
+                    <input type="email" id="registerEmail" placeholder="Введите email" required>
+                </div>
+                <div class="form-group">
+                    <label for="registerPassword">Пароль</label>
+                    <input type="password" id="registerPassword" placeholder="Придумайте пароль" required>
+                    <div class="password-requirements">
+                        <div id="reqLength">○ Минимум 6 символов</div>
+                        <div id="reqUpper">○ Одна заглавная буква</div>
+                        <div id="reqNumber">○ Одна цифра</div>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label for="confirmPassword">Подтвердите пароль</label>
+                    <input type="password" id="confirmPassword" placeholder="Повторите пароль" required>
+                </div>
+                <button id="registerBtn" class="btn btn-primary">
+                    <span id="registerBtnText">Создать аккаунт</span>
+                </button>
+            </div>
+            
+            <div id="authMessages" class="messages"></div>
+        </div>
+    </div>
+    
+    <!-- Основной экран приложения -->
+    <div id="mainScreen" class="screen hidden">
+        <header class="header">
+            <div class="header-content">
+                <div class="user-info">
+                    <span class="user-name">👤 <span id="currentUsername">Пользователь</span></span>
+                    <div id="syncStatus" class="sync-status">🔄 Синхронизация...</div>
+                </div>
+                <button id="logoutBtn" class="btn btn-secondary">Выход</button>
+            </div>
+        </header>
+        
+        <main class="main-content">
+            <!-- Статистика -->
+            <section class="stats-section">
+                <div class="stats-grid">
+                    <div class="stat-card balance">
+                        <div class="stat-icon">💰</div>
+                        <div class="stat-info">
+                            <div class="stat-label">Баланс</div>
+                            <div class="stat-value" id="balance">0 ₽</div>
+                        </div>
+                    </div>
+                    <div class="stat-card income">
+                        <div class="stat-icon">📈</div>
+                        <div class="stat-info">
+                            <div class="stat-label">Доходы</div>
+                            <div class="stat-value" id="totalIncome">0 ₽</div>
+                        </div>
+                    </div>
+                    <div class="stat-card expense">
+                        <div class="stat-icon">📉</div>
+                        <div class="stat-info">
+                            <div class="stat-label">Расходы</div>
+                            <div class="stat-value" id="totalExpense">0 ₽</div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+            
+            <!-- Форма добавления транзакции -->
+            <section class="transaction-form-section">
+                <div class="card">
+                    <h3>Добавить транзакцию</h3>
+                    <form id="transactionForm">
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="type">Тип</label>
+                                <select id="type" required>
+                                    <option value="">Выберите тип</option>
+                                    <option value="income">Доход</option>
+                                    <option value="expense">Расход</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label for="amount">Сумма (₽)</label>
+                                <input type="number" id="amount" step="0.01" min="0.01" placeholder="0.00" required>
+                            </div>
+                        </div>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="category">Категория</label>
+                                <select id="category" required>
+                                    <option value="">Выберите категорию</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label for="description">Описание</label>
+                                <input type="text" id="description" placeholder="Введите описание" required>
+                            </div>
+                        </div>
+                        <button type="submit" class="btn btn-primary">Добавить транзакцию</button>
+                    </form>
+                </div>
+            </section>
+            
+            <!-- Периоды и управление -->
+            <section class="controls-section">
+                <div class="controls-row">
+                    <div class="period-controls">
+                        <button class="period-btn active" data-period="month">Месяц</button>
+                        <button class="period-btn" data-period="year">Год</button>
+                        <button class="period-btn" data-period="all">Все время</button>
+                    </div>
+                    <div class="action-controls">
+                        <button id="syncBtn" class="btn btn-secondary" title="Синхронизировать">🔄</button>
+                        <button id="statsBtn" class="btn btn-secondary" title="Статистика">📊</button>
+                    </div>
+                </div>
+                <div id="periodInfo" class="period-info">
+                    <span>ℹ️</span> Показаны данные за текущий месяц
+                </div>
+            </section>
+            
+            <!-- Список транзакций -->
+            <section class="transactions-section">
+                <div class="card">
+                    <h3>История транзакций</h3>
+                    <div id="transactionsList" class="transactions-list">
+                        <div class="empty-state">
+                            <p>Нет транзакций</p>
+                        </div>
+                    </div>
+                </div>
+            </section>
+        </main>
+    </div>
+    
+    <!-- Модальное окно удаления -->
+    <div id="deleteModal" class="modal-overlay hidden">
+        <div class="modal">
+            <div class="modal-header">
+                <h3>Подтверждение удаления</h3>
+            </div>
+            <div class="modal-body">
+                <p>Вы уверены, что хотите удалить эту транзакцию?</p>
+            </div>
+            <div class="modal-footer">
+                <button id="modalCancel" class="btn btn-secondary">Отмена</button>
+                <button id="modalConfirm" class="btn btn-danger">Удалить</button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Уведомления -->
+    <div id="notifications" class="notifications"></div>
+    
+    <script src="app.js"></script>
+</body>
+</html>
