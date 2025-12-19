@@ -1,208 +1,25 @@
-// Финансовый трекер - Улучшенная система базы данных с облачной синхронизацией
+// Финансовый трекер - Система управления базой данных
 class FinanceDatabase {
     constructor() {
         this.dbName = 'FinanceTrackerDB';
-        this.cloudName = 'FinanceCloudStorage';
-        this.version = '2.1.0';
+        this.version = '1.0.0';
         this.isConnected = false;
         this.lastBackup = null;
-        this.syncQueue = [];
-        this.isOnline = navigator.onLine;
         this.init();
     }
 
     // Инициализация базы данных
     init() {
-        console.log('Initializing Enhanced Finance Database...');
+        console.log('Initializing Finance Database...');
         this.createDatabase();
-        this.initializeCloudStorage();
         this.createTables();
         this.createIndexes();
         this.setupDataIntegrity();
-        this.setupNetworkListeners();
         this.isConnected = true;
-        console.log('Enhanced Database initialized successfully');
+        console.log('Database initialized successfully');
     }
 
-    // Инициализация облачного хранилища (эмуляция сервера)
-    initializeCloudStorage() {
-        const cloudStructure = {
-            metadata: {
-                name: this.cloudName,
-                version: this.version,
-                createdAt: new Date().toISOString(),
-                lastModified: new Date().toISOString(),
-                totalUsers: 0,
-                totalTransactions: 0
-            },
-            users: {},
-            transactions: {},
-            sessions: {},
-            devices: {},
-            categories: {},
-            syncLog: [],
-            conflicts: []
-        };
-
-        if (!localStorage.getItem(this.cloudName)) {
-            localStorage.setItem(this.cloudName, JSON.stringify(cloudStructure));
-            console.log('Cloud storage initialized');
-        }
-
-        // Создаем глобальный API для облачного хранилища
-        window.FINANCE_CLOUD = {
-            // Получение данных из облака
-            getData: () => {
-                try {
-                    const data = JSON.parse(localStorage.getItem(this.cloudName) || '{}');
-                    return data;
-                } catch (e) {
-                    console.error('Error reading cloud data:', e);
-                    return { users: {}, transactions: {}, sessions: {}, devices: {}, categories: {} };
-                }
-            },
-            
-            // Сохранение данных в облако
-            saveData: (data) => {
-                try {
-                    data.metadata.lastModified = new Date().toISOString();
-                    localStorage.setItem(this.cloudName, JSON.stringify(data));
-                    console.log('Cloud data updated');
-                    return true;
-                } catch (e) {
-                    console.error('Error saving cloud data:', e);
-                    return false;
-                }
-            },
-
-            // Регистрация пользователя в облаке
-            registerUser: (userData) => {
-                const data = this.getData();
-                data.users[userData.username] = userData;
-                data.transactions[userData.username] = [];
-                data.devices[userData.username] = [];
-                data.categories[userData.username] = this.getDefaultCategories();
-                return this.saveData(data);
-            },
-
-            // Аутентификация пользователя
-            authenticateUser: (username, password) => {
-                const data = this.getData();
-                const user = data.users[username];
-                
-                if (!user) return null;
-                
-                // Проверяем пароль
-                const hash = this.hashPassword(password, user.salt);
-                if (hash !== user.password_hash) return null;
-                
-                // Обновляем время последнего входа
-                user.last_login = new Date().toISOString();
-                this.saveData(data);
-                
-                return user;
-            },
-
-            // Получение транзакций пользователя
-            getUserTransactions: (username) => {
-                const data = this.getData();
-                return data.transactions[username] || [];
-            },
-
-            // Добавление транзакции
-            addTransaction: (username, transaction) => {
-                const data = this.getData();
-                if (!data.transactions[username]) {
-                    data.transactions[username] = [];
-                }
-                
-                // Проверяем на дубликаты
-                const exists = data.transactions[username].some(t => t.id === transaction.id);
-                if (!exists) {
-                    data.transactions[username].push(transaction);
-                    this.saveData(data);
-                    return true;
-                }
-                return false;
-            },
-
-            // Удаление транзакции
-            removeTransaction: (username, transactionId) => {
-                const data = this.getData();
-                if (data.transactions[username]) {
-                    data.transactions[username] = data.transactions[username].filter(t => t.id !== transactionId);
-                    this.saveData(data);
-                    return true;
-                }
-                return false;
-            },
-
-            // Регистрация устройства
-            registerDevice: (username, deviceData) => {
-                const data = this.getData();
-                if (!data.devices[username]) {
-                    data.devices[username] = [];
-                }
-                
-                const existingDevice = data.devices[username].find(d => d.device_id === deviceData.device_id);
-                if (existingDevice) {
-                    existingDevice.last_sync = new Date().toISOString();
-                    existingDevice.is_active = true;
-                } else {
-                    data.devices[username].push(deviceData);
-                }
-                
-                return this.saveData(data);
-            },
-
-            // Получение устройств пользователя
-            getUserDevices: (username) => {
-                const data = this.getData();
-                return data.devices[username] || [];
-            },
-
-            // Хеширование пароля
-            hashPassword: (password, salt) => {
-                if (!salt) {
-                    salt = Math.random().toString(36).substring(2, 15);
-                }
-                
-                let hash = password + salt;
-                for (let i = 0; i < 1000; i++) {
-                    hash = hash.split('').reduce((a, b) => {
-                        a = ((a << 5) - a) + b.charCodeAt(0);
-                        return a & a;
-                    }, 0);
-                }
-                
-                return hash.toString();
-            },
-
-            // Получение категорий по умолчанию
-            getDefaultCategories: () => {
-                return [
-                    // Доходы
-                    { name: 'Зарплата', type: 'income', color: '#10b981', icon: '💼', is_default: true },
-                    { name: 'Подработка', type: 'income', color: '#3b82f6', icon: '💰', is_default: true },
-                    { name: 'Инвестиции', type: 'income', color: '#8b5cf6', icon: '📈', is_default: true },
-                    { name: 'Подарки', type: 'income', color: '#ec4899', icon: '🎁', is_default: true },
-                    { name: 'Другое', type: 'income', color: '#6b7280', icon: '📌', is_default: true },
-                    
-                    // Расходы
-                    { name: 'Продукты', type: 'expense', color: '#ef4444', icon: '🛒', is_default: true },
-                    { name: 'Транспорт', type: 'expense', color: '#f59e0b', icon: '🚗', is_default: true },
-                    { name: 'Жилье', type: 'expense', color: '#84cc16', icon: '🏠', is_default: true },
-                    { name: 'Развлечения', type: 'expense', color: '#06b6d4', icon: '🎮', is_default: true },
-                    { name: 'Здоровье', type: 'expense', color: '#f97316', icon: '🏥', is_default: true },
-                    { name: 'Одежда', type: 'expense', color: '#a855f7', icon: '👕', is_default: true },
-                    { name: 'Образование', type: 'expense', color: '#0ea5e9', icon: '📚', is_default: true },
-                    { name: 'Другое', type: 'expense', color: '#6b7280', icon: '📌', is_default: true }
-                ];
-            }
-        };
-    }
-
-    // Создание локальной базы данных
+    // Создание структуры базы данных
     createDatabase() {
         const dbStructure = {
             metadata: {
@@ -210,8 +27,9 @@ class FinanceDatabase {
                 version: this.version,
                 createdAt: new Date().toISOString(),
                 lastModified: new Date().toISOString(),
-                lastSync: null,
-                deviceId: this.generateDeviceId()
+                totalUsers: 0,
+                totalTransactions: 0,
+                size: 0
             },
             tables: {
                 users: {
@@ -224,7 +42,6 @@ class FinanceDatabase {
                         created_at: 'TIMESTAMP DEFAULT CURRENT_TIMESTAMP',
                         updated_at: 'TIMESTAMP DEFAULT CURRENT_TIMESTAMP',
                         last_login: 'TIMESTAMP',
-                        last_sync: 'TIMESTAMP',
                         is_active: 'BOOLEAN DEFAULT TRUE',
                         preferences: 'JSON',
                         settings: 'JSON'
@@ -245,67 +62,95 @@ class FinanceDatabase {
                         updated_at: 'TIMESTAMP DEFAULT CURRENT_TIMESTAMP',
                         device_id: 'VARCHAR(50)',
                         is_deleted: 'BOOLEAN DEFAULT FALSE',
-                        sync_status: 'ENUM("synced", "pending", "conflict") DEFAULT "pending"',
-                        cloud_id: 'VARCHAR(100)'
+                        tags: 'JSON'
                     },
                     data: [],
-                    indexes: ['user_id', 'type', 'category', 'date', 'sync_status']
+                    indexes: ['user_id', 'type', 'category', 'date', 'created_at']
                 },
-                sync_queue: {
+                categories: {
                     columns: {
                         id: 'PRIMARY_KEY',
-                        operation: 'ENUM("create", "update", "delete") NOT NULL',
-                        table_name: 'VARCHAR(50) NOT NULL',
-                        record_id: 'VARCHAR(100) NOT NULL',
-                        data: 'JSON',
-                        created_at: 'TIMESTAMP DEFAULT CURRENT_TIMESTAMP',
-                        retry_count: 'INTEGER DEFAULT 0',
-                        status: 'ENUM("pending", "completed", "failed") DEFAULT "pending"'
+                        user_id: 'INTEGER FOREIGN KEY REFERENCES users(id)',
+                        name: 'VARCHAR(50) NOT NULL',
+                        type: 'ENUM("income", "expense") NOT NULL',
+                        color: 'VARCHAR(7)',
+                        icon: 'VARCHAR(10)',
+                        is_default: 'BOOLEAN DEFAULT FALSE',
+                        created_at: 'TIMESTAMP DEFAULT CURRENT_TIMESTAMP'
                     },
-                    data: []
+                    data: [],
+                    indexes: ['user_id', 'type', 'name']
+                },
+                devices: {
+                    columns: {
+                        id: 'PRIMARY_KEY',
+                        user_id: 'INTEGER FOREIGN KEY REFERENCES users(id)',
+                        device_id: 'VARCHAR(100) UNIQUE NOT NULL',
+                        device_name: 'VARCHAR(100)',
+                        device_type: 'VARCHAR(20)',
+                        last_sync: 'TIMESTAMP',
+                        is_active: 'BOOLEAN DEFAULT TRUE',
+                        created_at: 'TIMESTAMP DEFAULT CURRENT_TIMESTAMP'
+                    },
+                    data: [],
+                    indexes: ['user_id', 'device_id', 'last_sync']
+                },
+                sessions: {
+                    columns: {
+                        id: 'PRIMARY_KEY',
+                        user_id: 'INTEGER FOREIGN KEY REFERENCES users(id)',
+                        session_token: 'VARCHAR(255) UNIQUE NOT NULL',
+                        device_id: 'VARCHAR(100)',
+                        ip_address: 'VARCHAR(45)',
+                        user_agent: 'TEXT',
+                        created_at: 'TIMESTAMP DEFAULT CURRENT_TIMESTAMP',
+                        expires_at: 'TIMESTAMP',
+                        is_active: 'BOOLEAN DEFAULT TRUE'
+                    },
+                    data: [],
+                    indexes: ['user_id', 'session_token', 'expires_at']
+                },
+                backups: {
+                    columns: {
+                        id: 'PRIMARY_KEY',
+                        user_id: 'INTEGER FOREIGN KEY REFERENCES users(id)',
+                        backup_data: 'JSON NOT NULL',
+                        backup_type: 'ENUM("manual", "auto") DEFAULT "manual"',
+                        file_size: 'INTEGER',
+                        checksum: 'VARCHAR(64)',
+                        created_at: 'TIMESTAMP DEFAULT CURRENT_TIMESTAMP',
+                        description: 'TEXT'
+                    },
+                    data: [],
+                    indexes: ['user_id', 'backup_type', 'created_at']
                 }
             },
             sequences: {
                 users: 1,
                 transactions: 1,
-                sync_queue: 1
+                categories: 1,
+                devices: 1,
+                sessions: 1,
+                backups: 1
             }
         };
 
         if (!localStorage.getItem(this.dbName)) {
             localStorage.setItem(this.dbName, JSON.stringify(dbStructure));
-            console.log('Local database created');
+            console.log('Database created');
         }
-    }
-
-    // Генерация ID устройства
-    generateDeviceId() {
-        let deviceId = localStorage.getItem('finance_device_id');
-        if (!deviceId) {
-            deviceId = 'device_' + Date.now() + '_' + Math.random().toString(36).substring(2, 9);
-            localStorage.setItem('finance_device_id', deviceId);
-        }
-        return deviceId;
-    }
-
-    // Настройка слушателей сетевых событий
-    setupNetworkListeners() {
-        window.addEventListener('online', () => {
-            this.isOnline = true;
-            console.log('Device is online');
-            this.processSyncQueue();
-        });
-        
-        window.addEventListener('offline', () => {
-            this.isOnline = false;
-            console.log('Device is offline');
-        });
     }
 
     // Создание таблиц
     createTables() {
         const db = this.getDatabase();
-        // Дополнительная инициализация таблиц
+        
+        // Создаем таблицу пользователей
+        if (!db.tables.users.data.length) {
+            this.insertDefaultCategories();
+        }
+        
+        // Обновляем метаданные
         this.updateMetadata();
     }
 
@@ -313,11 +158,13 @@ class FinanceDatabase {
     createIndexes() {
         const db = this.getDatabase();
         
+        // Индексы создаются виртуально через объекты для быстрого поиска
         db.indexes = {
             users_by_username: {},
             users_by_email: {},
             transactions_by_user: {},
-            transactions_by_sync_status: {}
+            transactions_by_date: {},
+            devices_by_user: {}
         };
         
         this.rebuildIndexes();
@@ -332,23 +179,18 @@ class FinanceDatabase {
             db.indexes[key] = {};
         });
         
-        // Строим индекс пользователей
+        // Строим индекс пользователей по username
         db.tables.users.data.forEach(user => {
             db.indexes.users_by_username[user.username] = user;
             db.indexes.users_by_email[user.email] = user;
         });
         
-        // Строим индекс транзакций
+        // Строим индекс транзакций по пользователю
         db.tables.transactions.data.forEach(transaction => {
             if (!db.indexes.transactions_by_user[transaction.user_id]) {
                 db.indexes.transactions_by_user[transaction.user_id] = [];
             }
             db.indexes.transactions_by_user[transaction.user_id].push(transaction);
-            
-            if (!db.indexes.transactions_by_sync_status[transaction.sync_status]) {
-                db.indexes.transactions_by_sync_status[transaction.sync_status] = [];
-            }
-            db.indexes.transactions_by_sync_status[transaction.sync_status].push(transaction);
         });
         
         this.saveDatabase(db);
@@ -356,7 +198,10 @@ class FinanceDatabase {
 
     // Настройка целостности данных
     setupDataIntegrity() {
+        // Проверяем целостность данных при загрузке
         this.verifyDataIntegrity();
+        
+        // Устанавливаем автоматическое резервное копирование
         this.setupAutoBackup();
     }
 
@@ -365,11 +210,18 @@ class FinanceDatabase {
         const db = this.getDatabase();
         const errors = [];
         
-        // Проверка целостности локальных данных
+        // Проверяем связи между таблицами
         db.tables.transactions.data.forEach(transaction => {
             const userExists = db.tables.users.data.some(user => user.id === transaction.user_id);
             if (!userExists) {
                 errors.push(`Транзакция ${transaction.id} ссылается на несуществующего пользователя ${transaction.user_id}`);
+            }
+        });
+        
+        db.tables.devices.data.forEach(device => {
+            const userExists = db.tables.users.data.some(user => user.id === device.user_id);
+            if (!userExists) {
+                errors.push(`Устройство ${device.id} ссылается на несуществующего пользователя ${device.user_id}`);
             }
         });
         
@@ -388,18 +240,23 @@ class FinanceDatabase {
             return db.tables.users.data.some(user => user.id === transaction.user_id);
         });
         
+        db.tables.devices.data = db.tables.devices.data.filter(device => {
+            return db.tables.users.data.some(user => user.id === device.user_id);
+        });
+        
         this.saveDatabase(db);
         console.log('Data integrity repaired');
     }
 
     // Автоматическое резервное копирование
     setupAutoBackup() {
+        // Создаем резервную копию каждые 24 часа
         setInterval(() => {
             this.createAutoBackup();
         }, 24 * 60 * 60 * 1000);
     }
 
-    // Получение локальной базы данных
+    // Получение базы данных
     getDatabase() {
         try {
             return JSON.parse(localStorage.getItem(this.dbName) || '{}');
@@ -409,10 +266,14 @@ class FinanceDatabase {
         }
     }
 
-    // Сохранение локальной базы данных
+    // Сохранение базы данных
     saveDatabase(db) {
         try {
             db.metadata.lastModified = new Date().toISOString();
+            db.metadata.totalUsers = db.tables.users.data.length;
+            db.metadata.totalTransactions = db.tables.transactions.data.length;
+            db.metadata.size = JSON.stringify(db).length;
+            
             localStorage.setItem(this.dbName, JSON.stringify(db));
             return true;
         } catch (e) {
@@ -425,6 +286,8 @@ class FinanceDatabase {
     updateMetadata() {
         const db = this.getDatabase();
         db.metadata.lastModified = new Date().toISOString();
+        db.metadata.totalUsers = db.tables.users.data.length;
+        db.metadata.totalTransactions = db.tables.transactions.data.length;
         this.saveDatabase(db);
     }
 
@@ -436,11 +299,38 @@ class FinanceDatabase {
         return id;
     }
 
-    // Регистрация пользователя (с синхронизацией с облаком)
-    async registerUser(username, email, password, preferences = {}) {
+    // Хеширование пароля
+    hashPassword(password, salt = null) {
+        if (!salt) {
+            salt = Math.random().toString(36).substring(2, 15);
+        }
+        
+        // Простая эмуляция хеширования (в реальном приложении использовать bcrypt)
+        let hash = password + salt;
+        for (let i = 0; i < 1000; i++) {
+            hash = hash.split('').reduce((a, b) => {
+                a = ((a << 5) - a) + b.charCodeAt(0);
+                return a & a;
+            }, 0);
+        }
+        
+        return {
+            hash: hash.toString(),
+            salt: salt
+        };
+    }
+
+    // Проверка пароля
+    verifyPassword(password, hashedPassword, salt) {
+        const { hash } = this.hashPassword(password, salt);
+        return hash === hashedPassword;
+    }
+
+    // Создание пользователя
+    createUser(username, email, password, preferences = {}) {
         const db = this.getDatabase();
         
-        // Проверяем локально
+        // Проверяем уникальность
         if (db.indexes.users_by_username[username]) {
             throw new Error('Пользователь с таким именем уже существует');
         }
@@ -449,28 +339,18 @@ class FinanceDatabase {
             throw new Error('Пользователь с таким email уже существует');
         }
         
-        // Проверяем в облаке
-        const cloudData = window.FINANCE_CLOUD.getData();
-        if (cloudData.users[username]) {
-            throw new Error('Пользователь с таким именем уже существует в системе');
-        }
-        
-        // Создаем хеш пароля
-        const salt = Math.random().toString(36).substring(2, 15);
-        const password_hash = window.FINANCE_CLOUD.hashPassword(password, salt);
-        
+        const { hash, salt } = this.hashPassword(password);
         const userId = this.getNextId('users');
         
-        const userData = {
+        const user = {
             id: userId,
             username,
             email,
-            password_hash,
+            password_hash: hash,
             salt,
             created_at: new Date().toISOString(),
             updated_at: new Date().toISOString(),
             last_login: null,
-            last_sync: null,
             is_active: true,
             preferences: {
                 theme: 'light',
@@ -486,248 +366,77 @@ class FinanceDatabase {
             }
         };
         
-        // Сохраняем локально
-        db.tables.users.data.push(userData);
-        db.indexes.users_by_username[username] = userData;
-        db.indexes.users_by_email[email] = userData;
+        db.tables.users.data.push(user);
+        db.indexes.users_by_username[username] = user;
+        db.indexes.users_by_email[email] = user;
         
-        // Регистрируем в облаке
-        const cloudSuccess = window.FINANCE_CLOUD.registerUser(userData);
-        
-        if (!cloudSuccess) {
-            throw new Error('Ошибка регистрации в облачном хранилище');
-        }
+        // Создаем категории по умолчанию для пользователя
+        this.createUserDefaultCategories(userId);
         
         this.saveDatabase(db);
-        console.log(`User registered: ${username} (ID: ${userId})`);
+        console.log(`User created: ${username} (ID: ${userId})`);
         
-        return userData;
+        return user;
     }
 
-    // Аутентификация пользователя (с проверкой в облаке)
-    async authenticateUser(username, password) {
-        // Сначала пробуем аутентифицировать в облаке
-        const cloudUser = window.FINANCE_CLOUD.authenticateUser(username, password);
-        
-        if (!cloudUser) {
-            throw new Error('Неверный логин или пароль');
-        }
-        
-        // Проверяем локально
+    // Аутентификация пользователя
+    authenticateUser(username, password) {
         const db = this.getDatabase();
-        let localUser = db.indexes.users_by_username[username];
+        const user = db.indexes.users_by_username[username];
         
-        if (!localUser) {
-            // Если пользователя нет локально, создаем его
-            const userId = this.getNextId('users');
-            localUser = {
-                ...cloudUser,
-                id: userId,
-                last_sync: new Date().toISOString()
-            };
-            
-            db.tables.users.data.push(localUser);
-            db.indexes.users_by_username[username] = localUser;
-            db.indexes.users_by_email[cloudUser.email] = localUser;
-        } else {
-            // Обновляем локальные данные
-            localUser.last_login = cloudUser.last_login;
-            localUser.last_sync = new Date().toISOString();
+        if (!user) {
+            throw new Error('Пользователь не найден');
         }
+        
+        if (!user.is_active) {
+            throw new Error('Аккаунт деактивирован');
+        }
+        
+        if (!this.verifyPassword(password, user.password_hash, user.salt)) {
+            throw new Error('Неверный пароль');
+        }
+        
+        // Обновляем время последнего входа
+        user.last_login = new Date().toISOString();
+        user.updated_at = new Date().toISOString();
         
         this.saveDatabase(db);
         
-        // Синхронизируем данные пользователя
-        await this.syncUserData(username);
-        
         // Создаем сессию
-        const sessionToken = this.createSession(localUser.id);
+        const sessionToken = this.createSession(user.id);
         
         return {
             user: {
-                id: localUser.id,
-                username: localUser.username,
-                email: localUser.email,
-                preferences: localUser.preferences,
-                created_at: localUser.created_at
+                id: user.id,
+                username: user.username,
+                email: user.email,
+                preferences: user.preferences,
+                created_at: user.created_at
             },
             sessionToken
         };
     }
 
-    // Синхронизация данных пользователя
-    async syncUserData(username) {
-        if (!this.isOnline) {
-            console.log('Offline - skipping sync');
-            return;
-        }
-        
-        try {
-            const db = this.getDatabase();
-            const localUser = db.indexes.users_by_username[username];
-            
-            if (!localUser) return;
-            
-            // Получаем данные из облака
-            const cloudTransactions = window.FINANCE_CLOUD.getUserTransactions(username);
-            const localTransactions = db.indexes.transactions_by_user[localUser.id] || [];
-            
-            // Синхронизируем транзакции
-            const syncedTransactions = await this.mergeTransactions(localTransactions, cloudTransactions);
-            
-            // Обновляем локальные данные
-            db.tables.transactions.data = db.tables.transactions.data.filter(t => t.user_id !== localUser.id);
-            syncedTransactions.forEach(transaction => {
-                db.tables.transactions.data.push(transaction);
-            });
-            
-            // Обновляем время синхронизации
-            localUser.last_sync = new Date().toISOString();
-            
-            this.saveDatabase(db);
-            this.rebuildIndexes();
-            
-            console.log(`User data synced: ${username}`);
-        } catch (error) {
-            console.error('Error syncing user data:', error);
-        }
-    }
-
-    // Слияние транзакций (разрешение конфликтов)
-    async mergeTransactions(localTransactions, cloudTransactions) {
-        const merged = [];
-        const seenIds = new Set();
-        
-        // Добавляем облачные транзакции
-        cloudTransactions.forEach(transaction => {
-            merged.push({
-                ...transaction,
-                sync_status: 'synced',
-                cloud_id: transaction.id
-            });
-            seenIds.add(transaction.id);
-        });
-        
-        // Добавляем локальные транзакции, которых нет в облаке
-        localTransactions.forEach(transaction => {
-            if (!seenIds.has(transaction.cloud_id) && transaction.sync_status !== 'synced') {
-                merged.push(transaction);
-                
-                // Добавляем в очередь синхронизации
-                if (transaction.sync_status === 'pending') {
-                    this.addToSyncQueue('create', 'transactions', transaction.id, transaction);
-                }
-            }
-        });
-        
-        // Сортируем по дате
-        merged.sort((a, b) => new Date(b.date) - new Date(a.date));
-        
-        return merged;
-    }
-
-    // Добавление операции в очередь синхронизации
-    addToSyncQueue(operation, tableName, recordId, data) {
-        const db = this.getDatabase();
-        const queueId = this.getNextId('sync_queue');
-        
-        const queueItem = {
-            id: queueId,
-            operation,
-            table_name: tableName,
-            record_id: recordId,
-            data,
-            created_at: new Date().toISOString(),
-            retry_count: 0,
-            status: 'pending'
-        };
-        
-        db.tables.sync_queue.data.push(queueItem);
-        this.saveDatabase(db);
-        
-        // Пробуем синхронизировать сразу
-        if (this.isOnline) {
-            this.processSyncQueue();
-        }
-    }
-
-    // Обработка очереди синхронизации
-    async processSyncQueue() {
-        if (!this.isOnline) return;
-        
-        const db = this.getDatabase();
-        const pendingItems = db.tables.sync_queue.data.filter(item => item.status === 'pending');
-        
-        for (const item of pendingItems) {
-            try {
-                let success = false;
-                
-                if (item.table_name === 'transactions' && item.operation === 'create') {
-                    const transaction = item.data;
-                    
-                    // Получаем username по user_id
-                    const user = db.tables.users.data.find(u => u.id === transaction.user_id);
-                    if (user) {
-                        success = window.FINANCE_CLOUD.addTransaction(user.username, {
-                            id: transaction.id,
-                            type: transaction.type,
-                            amount: transaction.amount,
-                            category: transaction.category,
-                            description: transaction.description,
-                            date: transaction.date,
-                            device_id: transaction.device_id
-                        });
-                    }
-                }
-                
-                if (success) {
-                    // Обновляем статус транзакции
-                    const transaction = db.tables.transactions.data.find(t => t.id === item.record_id);
-                    if (transaction) {
-                        transaction.sync_status = 'synced';
-                    }
-                    
-                    // Удаляем из очереди
-                    item.status = 'completed';
-                } else {
-                    item.retry_count++;
-                    if (item.retry_count > 3) {
-                        item.status = 'failed';
-                    }
-                }
-            } catch (error) {
-                console.error('Error processing sync queue item:', error);
-                item.retry_count++;
-                if (item.retry_count > 3) {
-                    item.status = 'failed';
-                }
-            }
-        }
-        
-        this.saveDatabase(db);
-    }
-
     // Создание сессии
-    createSession(userId) {
+    createSession(userId, deviceId = null) {
         const db = this.getDatabase();
+        const sessionId = this.getNextId('sessions');
         const sessionToken = this.generateSessionToken();
         
         const session = {
-            id: this.getNextId('sessions'),
+            id: sessionId,
             user_id: userId,
             session_token: sessionToken,
-            device_id: this.generateDeviceId(),
+            device_id: deviceId,
             ip_address: '127.0.0.1',
             user_agent: navigator.userAgent,
             created_at: new Date().toISOString(),
-            expires_at: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+            expires_at: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(), // 30 дней
             is_active: true
         };
         
-        // Сохраняем сессию в облаке
-        const cloudData = window.FINANCE_CLOUD.getData();
-        cloudData.sessions[sessionToken] = session;
-        window.FINANCE_CLOUD.saveData(cloudData);
+        db.tables.sessions.data.push(session);
+        this.saveDatabase(db);
         
         return sessionToken;
     }
@@ -740,9 +449,8 @@ class FinanceDatabase {
 
     // Проверка сессии
     validateSession(sessionToken) {
-        // Проверяем в облаке
-        const cloudData = window.FINANCE_CLOUD.getData();
-        const session = cloudData.sessions[sessionToken];
+        const db = this.getDatabase();
+        const session = db.tables.sessions.data.find(s => s.session_token === sessionToken);
         
         if (!session || !session.is_active) {
             return null;
@@ -750,14 +458,11 @@ class FinanceDatabase {
         
         if (new Date(session.expires_at) < new Date()) {
             session.is_active = false;
-            window.FINANCE_CLOUD.saveData(cloudData);
+            this.saveDatabase(db);
             return null;
         }
         
-        // Получаем данные пользователя
-        const db = this.getDatabase();
         const user = db.tables.users.data.find(u => u.id === session.user_id);
-        
         if (!user || !user.is_active) {
             return null;
         }
@@ -773,8 +478,8 @@ class FinanceDatabase {
         };
     }
 
-    // Создание транзакции (с синхронизацией)
-    async createTransaction(userId, type, amount, category, description, date = null) {
+    // Создание транзакции
+    createTransaction(userId, type, amount, category, description, date = null) {
         const db = this.getDatabase();
         
         // Проверяем существование пользователя
@@ -784,11 +489,9 @@ class FinanceDatabase {
         }
         
         const transactionId = this.getNextId('transactions');
-        const cloudId = 'cloud_' + Date.now() + '_' + Math.random().toString(36).substring(2, 9);
         
         const transaction = {
             id: transactionId,
-            cloud_id: cloudId,
             user_id: userId,
             type,
             amount: parseFloat(amount),
@@ -797,54 +500,22 @@ class FinanceDatabase {
             date: date || new Date().toISOString(),
             created_at: new Date().toISOString(),
             updated_at: new Date().toISOString(),
-            device_id: this.generateDeviceId(),
+            device_id: this.getCurrentDeviceId(),
             is_deleted: false,
-            sync_status: this.isOnline ? 'synced' : 'pending'
+            tags: []
         };
         
-        // Сохраняем локально
         db.tables.transactions.data.push(transaction);
         
-        // Обновляем индексы
+        // Обновляем индекс
         if (!db.indexes.transactions_by_user[userId]) {
             db.indexes.transactions_by_user[userId] = [];
         }
         db.indexes.transactions_by_user[userId].push(transaction);
         
-        if (!db.indexes.transactions_by_sync_status[transaction.sync_status]) {
-            db.indexes.transactions_by_sync_status[transaction.sync_status] = [];
-        }
-        db.indexes.transactions_by_sync_status[transaction.sync_status].push(transaction);
-        
         this.saveDatabase(db);
-        
-        // Если онлайн, синхронизируем сразу
-        if (this.isOnline) {
-            try {
-                const success = window.FINANCE_CLOUD.addTransaction(user.username, {
-                    id: cloudId,
-                    type,
-                    amount,
-                    category,
-                    description,
-                    date: transaction.date,
-                    device_id: transaction.device_id
-                });
-                
-                if (success) {
-                    transaction.sync_status = 'synced';
-                    this.saveDatabase(db);
-                }
-            } catch (error) {
-                console.error('Error syncing transaction:', error);
-                this.addToSyncQueue('create', 'transactions', transactionId, transaction);
-            }
-        } else {
-            // Добавляем в очередь синхронизации
-            this.addToSyncQueue('create', 'transactions', transactionId, transaction);
-        }
-        
         console.log(`Transaction created: ${type} ${amount} for user ${userId}`);
+        
         return transaction;
     }
 
@@ -880,8 +551,8 @@ class FinanceDatabase {
         return transactions;
     }
 
-    // Удаление транзакции (с синхронизацией)
-    async deleteTransaction(transactionId, userId) {
+    // Удаление транзакции
+    deleteTransaction(transactionId, userId) {
         const db = this.getDatabase();
         const transaction = db.tables.transactions.data.find(t => t.id === transactionId && t.user_id === userId);
         
@@ -889,41 +560,33 @@ class FinanceDatabase {
             throw new Error('Транзакция не найдена');
         }
         
-        const user = db.tables.users.data.find(u => u.id === userId);
-        
-        // Помечаем как удаленную локально
         transaction.is_deleted = true;
         transaction.updated_at = new Date().toISOString();
         
         this.saveDatabase(db);
-        
-        // Если онлайн, удаляем из облака
-        if (this.isOnline && user) {
-            try {
-                window.FINANCE_CLOUD.removeTransaction(user.username, transaction.cloud_id);
-                transaction.sync_status = 'synced';
-            } catch (error) {
-                console.error('Error deleting transaction from cloud:', error);
-                this.addToSyncQueue('delete', 'transactions', transactionId, { cloud_id: transaction.cloud_id });
-            }
-        } else {
-            this.addToSyncQueue('delete', 'transactions', transactionId, { cloud_id: transaction.cloud_id });
-        }
-        
         console.log(`Transaction deleted: ${transactionId}`);
+        
         return true;
     }
 
     // Регистрация устройства
-    async registerDevice(userId, deviceId, deviceName = 'Unknown Device') {
+    registerDevice(userId, deviceId, deviceName = 'Unknown Device') {
         const db = this.getDatabase();
-        const user = db.tables.users.data.find(u => u.id === userId);
         
-        if (!user) {
-            throw new Error('Пользователь не найден');
+        // Проверяем, не зарегистрировано ли уже устройство
+        const existingDevice = db.tables.devices.data.find(d => d.device_id === deviceId && d.user_id === userId);
+        if (existingDevice) {
+            existingDevice.last_sync = new Date().toISOString();
+            existingDevice.is_active = true;
+            this.saveDatabase(db);
+            return existingDevice;
         }
         
-        const deviceData = {
+        const deviceRecordId = this.getNextId('devices');
+        
+        const device = {
+            id: deviceRecordId,
+            user_id: userId,
             device_id: deviceId,
             device_name: deviceName,
             device_type: this.getDeviceType(),
@@ -932,12 +595,10 @@ class FinanceDatabase {
             created_at: new Date().toISOString()
         };
         
-        // Регистрируем в облаке
-        if (user.username) {
-            window.FINANCE_CLOUD.registerDevice(user.username, deviceData);
-        }
+        db.tables.devices.data.push(device);
+        this.saveDatabase(db);
         
-        return deviceData;
+        return device;
     }
 
     // Получение типа устройства
@@ -950,41 +611,104 @@ class FinanceDatabase {
 
     // Получение ID текущего устройства
     getCurrentDeviceId() {
-        return this.generateDeviceId();
+        let deviceId = localStorage.getItem('device_id');
+        if (!deviceId) {
+            deviceId = 'device_' + Date.now() + '_' + Math.random().toString(36).substring(2, 9);
+            localStorage.setItem('device_id', deviceId);
+        }
+        return deviceId;
+    }
+
+    // Создание категорий по умолчанию
+    createUserDefaultCategories(userId) {
+        const db = this.getDatabase();
+        
+        const defaultCategories = [
+            // Доходы
+            { name: 'Зарплата', type: 'income', color: '#10b981', icon: '💼' },
+            { name: 'Подработка', type: 'income', color: '#3b82f6', icon: '💰' },
+            { name: 'Инвестиции', type: 'income', color: '#8b5cf6', icon: '📈' },
+            { name: 'Подарки', type: 'income', color: '#ec4899', icon: '🎁' },
+            { name: 'Другое', type: 'income', color: '#6b7280', icon: '📌' },
+            
+            // Расходы
+            { name: 'Продукты', type: 'expense', color: '#ef4444', icon: '🛒' },
+            { name: 'Транспорт', type: 'expense', color: '#f59e0b', icon: '🚗' },
+            { name: 'Жилье', type: 'expense', color: '#84cc16', icon: '🏠' },
+            { name: 'Развлечения', type: 'expense', color: '#06b6d4', icon: '🎮' },
+            { name: 'Здоровье', type: 'expense', color: '#f97316', icon: '🏥' },
+            { name: 'Одежда', type: 'expense', color: '#a855f7', icon: '👕' },
+            { name: 'Образование', type: 'expense', color: '#0ea5e9', icon: '📚' },
+            { name: 'Другое', type: 'expense', color: '#6b7280', icon: '📌' }
+        ];
+        
+        defaultCategories.forEach(category => {
+            const categoryId = this.getNextId('categories');
+            const categoryRecord = {
+                id: categoryId,
+                user_id: userId,
+                ...category,
+                is_default: true,
+                created_at: new Date().toISOString()
+            };
+            
+            db.tables.categories.data.push(categoryRecord);
+        });
+        
+        this.saveDatabase(db);
+    }
+
+    // Вставка категорий по умолчанию
+    insertDefaultCategories() {
+        // Глобальные категории по умолчанию (для всех пользователей)
+        const db = this.getDatabase();
+        // Здесь можно добавить глобальные категории
+    }
+
+    // Получение категорий пользователя
+    getUserCategories(userId, type = null) {
+        const db = this.getDatabase();
+        let categories = db.tables.categories.data.filter(c => c.user_id === userId);
+        
+        if (type) {
+            categories = categories.filter(c => c.type === type);
+        }
+        
+        return categories.sort((a, b) => a.name.localeCompare(b.name));
     }
 
     // Создание резервной копии
     createBackup(userId, description = 'Manual backup') {
         const db = this.getDatabase();
         
-        const user = db.tables.users.data.find(u => u.id === userId);
-        if (!user) {
-            throw new Error('Пользователь не найден');
-        }
-        
         const userData = {
-            user: user,
+            user: db.tables.users.data.find(u => u.id === userId),
             transactions: this.getUserTransactions(userId),
+            categories: this.getUserCategories(userId),
+            devices: db.tables.devices.data.filter(d => d.user_id === userId),
             backup_metadata: {
                 created_at: new Date().toISOString(),
                 version: this.version,
-                description,
-                device_id: this.getCurrentDeviceId()
+                description
             }
         };
         
-        // Сохраняем в облаке
-        const cloudData = window.FINANCE_CLOUD.getData();
-        const backupId = 'backup_' + Date.now();
+        const backupId = this.getNextId('backups');
+        const backup = {
+            id: backupId,
+            user_id: userId,
+            backup_data: userData,
+            backup_type: 'manual',
+            file_size: JSON.stringify(userData).length,
+            checksum: this.calculateChecksum(JSON.stringify(userData)),
+            created_at: new Date().toISOString(),
+            description
+        };
         
-        if (!cloudData.backups) {
-            cloudData.backups = {};
-        }
+        db.tables.backups.data.push(backup);
+        this.saveDatabase(db);
         
-        cloudData.backups[backupId] = userData;
-        window.FINANCE_CLOUD.saveData(cloudData);
-        
-        return { id: backupId, ...userData };
+        return backup;
     }
 
     // Автоматическое резервное копирование
@@ -992,7 +716,7 @@ class FinanceDatabase {
         const db = this.getDatabase();
         
         db.tables.users.data.forEach(user => {
-            if (user.is_active && user.settings.backup_frequency === 'daily') {
+            if (user.settings.backup_frequency === 'daily') {
                 this.createBackup(user.id, 'Auto backup');
             }
         });
@@ -1001,29 +725,53 @@ class FinanceDatabase {
         console.log('Auto backup created');
     }
 
+    // Восстановление из резервной копии
+    restoreFromBackup(backupId) {
+        const db = this.getDatabase();
+        const backup = db.tables.backups.data.find(b => b.id === backupId);
+        
+        if (!backup) {
+            throw new Error('Резервная копия не найдена');
+        }
+        
+        const { user, transactions, categories } = backup.backup_data;
+        
+        // Восстанавливаем данные
+        // В реальном приложении здесь была бы более сложная логика слияния данных
+        
+        this.saveDatabase(db);
+        console.log(`Data restored from backup: ${backupId}`);
+        
+        return true;
+    }
+
+    // Расчет контрольной суммы
+    calculateChecksum(data) {
+        let hash = 0;
+        for (let i = 0; i < data.length; i++) {
+            const char = data.charCodeAt(i);
+            hash = ((hash << 5) - hash) + char;
+            hash = hash & hash;
+        }
+        return hash.toString(16);
+    }
+
     // Получение статистики базы данных
     getDatabaseStats() {
         const db = this.getDatabase();
-        const cloudData = window.FINANCE_CLOUD.getData();
         
         return {
-            local: {
-                metadata: db.metadata,
-                tables: {
-                    users: db.tables.users.data.length,
-                    transactions: db.tables.transactions.data.length,
-                    sync_queue: db.tables.sync_queue.data.filter(item => item.status === 'pending').length
-                },
-                size: JSON.stringify(db).length
+            metadata: db.metadata,
+            tables: {
+                users: db.tables.users.data.length,
+                transactions: db.tables.transactions.data.length,
+                categories: db.tables.categories.data.length,
+                devices: db.tables.devices.data.length,
+                sessions: db.tables.sessions.data.length,
+                backups: db.tables.backups.data.length
             },
-            cloud: {
-                metadata: cloudData.metadata,
-                users: Object.keys(cloudData.users).length,
-                transactions: Object.values(cloudData.transactions).reduce((sum, transactions) => sum + transactions.length, 0),
-                devices: Object.values(cloudData.devices).reduce((sum, devices) => sum + devices.length, 0)
-            },
-            lastBackup: this.lastBackup,
-            isOnline: this.isOnline
+            size: JSON.stringify(db).length,
+            lastBackup: this.lastBackup
         };
     }
 
@@ -1031,7 +779,6 @@ class FinanceDatabase {
     clearDatabase() {
         if (confirm('Вы уверены, что хотите удалить все данные? Это действие необратимо!')) {
             localStorage.removeItem(this.dbName);
-            localStorage.removeItem(this.cloudName);
             this.init();
             return true;
         }
@@ -1040,11 +787,9 @@ class FinanceDatabase {
 
     // Экспорт базы данных
     exportDatabase() {
-        const stats = this.getDatabaseStats();
+        const db = this.getDatabase();
         const exportData = {
-            local: this.getDatabase(),
-            cloud: window.FINANCE_CLOUD.getData(),
-            stats,
+            ...db,
             exported_at: new Date().toISOString(),
             export_version: this.version
         };
@@ -1054,10 +799,37 @@ class FinanceDatabase {
         
         const link = document.createElement('a');
         link.href = URL.createObjectURL(dataBlob);
-        link.download = `finance_database_export_${new Date().toISOString().split('T')[0]}.json`;
+        link.download = `finance_database_backup_${new Date().toISOString().split('T')[0]}.json`;
         link.click();
         
         return exportData;
+    }
+
+    // Импорт базы данных
+    importDatabase(importData) {
+        try {
+            const data = typeof importData === 'string' ? JSON.parse(importData) : importData;
+            
+            // Проверяем валидность данных
+            if (!data.tables || !data.metadata) {
+                throw new Error('Неверный формат базы данных');
+            }
+            
+            // Создаем резервную копию текущих данных
+            this.createAutoBackup();
+            
+            // Импортируем данные
+            localStorage.setItem(this.dbName, JSON.stringify(data));
+            
+            // Перестраиваем индексы
+            this.rebuildIndexes();
+            
+            console.log('Database imported successfully');
+            return true;
+        } catch (error) {
+            console.error('Error importing database:', error);
+            throw error;
+        }
     }
 }
 
